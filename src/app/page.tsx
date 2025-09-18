@@ -1,11 +1,10 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import type { Student, AttendanceCheckInResult } from "@/lib/types";
 import StudentCard from "@/components/StudentCard";
 import UploadImage from "@/components/UploadImage";
 import WebcamCapture from "@/components/WebcamCapture";
-import AttendanceCard from "@/components/AttendanceCard";
 
 type AttendanceStatus = {
   student: {
@@ -26,8 +25,6 @@ export default function Home() {
   const [loadingAdd, setLoadingAdd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
-  const [result, setResult] = useState<AttendanceCheckInResult | null>(null);
-  const [checking, setChecking] = useState(false);
   const [attendanceList, setAttendanceList] = useState<AttendanceStatus[]>([]);
   const [loadingAttendance, setLoadingAttendance] = useState(false);
 
@@ -43,7 +40,7 @@ export default function Home() {
     }
   };
 
-  const loadAttendance = async () => {
+  const loadAttendance = useCallback(async () => {
     setLoadingAttendance(true);
     try {
       const data = await api.get<AttendanceStatus[]>(`/attendance/status/${date}`);
@@ -54,7 +51,7 @@ export default function Home() {
     } finally {
       setLoadingAttendance(false);
     }
-  };
+  }, [date]);
 
   useEffect(() => {
     load();
@@ -62,7 +59,7 @@ export default function Home() {
 
   useEffect(() => {
     loadAttendance();
-  }, [date]);
+  }, [loadAttendance]);
 
   const addStudent = async () => {
     if (!name) return;
@@ -94,26 +91,16 @@ export default function Home() {
     }
   };
 
-  const onCapture = async (blob: Blob) => {
-    setChecking(true);
-    setResult(null);
-    setError(null);
-    try {
-      const fd = new FormData();
-      fd.append("photo", blob, "capture.jpg");
-      fd.append("date", date);
-      const r = await api.post<AttendanceCheckInResult>("/attendance/check-in", fd);
-      setResult(r);
-      // Reload attendance after successful check-in
-      if (r.matched) {
-        await loadAttendance();
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Failed to check in";
-      setError(msg);
-    } finally {
-      setChecking(false);
+  const onCapture = async (blob: Blob): Promise<AttendanceCheckInResult> => {
+    const fd = new FormData();
+    fd.append("photo", blob, "capture.jpg");
+    fd.append("date", date);
+    const r = await api.post<AttendanceCheckInResult>("/attendance/check-in", fd);
+    // Reload attendance after successful check-in
+    if (r.matched) {
+      await loadAttendance();
     }
+    return r;
   };
 
   const presentCount = attendanceList.filter(item => item.present).length;
@@ -250,19 +237,6 @@ export default function Home() {
               />
             </div>
             <WebcamCapture onCapture={onCapture} />
-            {checking && <div className="mt-3 text-sm">Checking...</div>}
-            {result && (
-              <div className="mt-4 rounded-xl border bg-slate-50 p-4">
-                {result.matched && result.student ? (
-                  <div>
-                    <div className="font-medium">Present: {result.student.name}</div>
-                    <div className="text-sm text-slate-600">Date: {result.date}</div>
-                  </div>
-                ) : (
-                  <div>No match found.</div>
-                )}
-              </div>
-            )}
           </div>
         </section>
 

@@ -9,4 +9,6 @@ export type AttendanceCheckInResult = {
   matched: boolean;
   confidence?: number;
   date: string;
+  already_checked_in: boolean;
+  checked_in_at?: string;
 };
